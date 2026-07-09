@@ -1,0 +1,4 @@
+../Core/Src/module_b.c:32:6:ModuleB_HandleTemperature	24	static
+../Core/Src/module_b.c:72:6:ModuleB_SendDuty	32	static
+../Core/Src/module_b.c:111:6:ModuleB_SendTargetTemp	32	static
+../Core/Src/module_b.c:139:6:ModuleB_Init	8	static

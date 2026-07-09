@@ -1,0 +1,4 @@
+../Core/Src/module_b.c:32:6:ModuleB_HandleTemperature	5
+../Core/Src/module_b.c:72:6:ModuleB_SendDuty	4
+../Core/Src/module_b.c:111:6:ModuleB_SendTargetTemp	3
+../Core/Src/module_b.c:139:6:ModuleB_Init	1

@@ -1,0 +1,2 @@
+../Core/Src/module_a.c:34:6:ModuleA_HandlePressure	7
+../Core/Src/module_a.c:117:6:ModuleA_Init	1

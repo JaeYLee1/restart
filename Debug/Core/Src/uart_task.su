@@ -1,0 +1,4 @@
+../Core/Src/uart_task.c:30:6:UARTTask_Init	16	static
+../Core/Src/uart_task.c:64:13:UARTTelemetryTask	256	static
+../Core/Src/uart_task.c:154:13:UARTCommandTask	24	static
+../Core/Src/uart_task.c:191:13:UART_ProcessCommandChar	24	static
