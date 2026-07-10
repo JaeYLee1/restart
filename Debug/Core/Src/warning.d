@@ -1,5 +1,5 @@
-Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
- ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h \
+Core/Src/warning.o: ../Core/Src/warning.c ../Core/Inc/warning.h \
+ ../Core/Inc/main.h ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h \
  ../Core/Inc/stm32f4xx_hal_conf.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h \
@@ -37,12 +37,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h \
- ../Core/Inc/can.h ../Core/Inc/main.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Core/Inc/detect.h ../Core/Inc/module_manager.h ../Core/Inc/can.h \
- ../Core/Inc/can_protocol.h ../Core/Inc/module_a.h ../Core/Inc/module_b.h \
- ../Core/Inc/uart_task.h ../Core/Inc/motor.h ../Core/Inc/warning.h
+ ../Core/Inc/LED_M.h ../Core/Inc/motor.h ../Core/Inc/system_data.h
+../Core/Inc/warning.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -82,16 +78,6 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h:
-../Core/Inc/can.h:
-../Core/Inc/main.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
-../Core/Inc/detect.h:
-../Core/Inc/module_manager.h:
-../Core/Inc/can.h:
-../Core/Inc/can_protocol.h:
-../Core/Inc/module_a.h:
-../Core/Inc/module_b.h:
-../Core/Inc/uart_task.h:
+../Core/Inc/LED_M.h:
 ../Core/Inc/motor.h:
-../Core/Inc/warning.h:
+../Core/Inc/system_data.h:

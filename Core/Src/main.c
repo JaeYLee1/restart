@@ -30,6 +30,7 @@
 #include "module_b.h"
 #include "uart_task.h"
 #include "motor.h"
+#include "warning.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -125,6 +126,8 @@ int main(void)
   ModuleManager_Init();
   ModuleA_Init();
   ModuleB_Init();
+
+  Warning_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -153,8 +156,10 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   CAN_RtosInit();
-  UARTTask_Init();
   Detect_RtosInit();
+  UARTTask_Init();
+  Motor_RtosInit();
+  Warning_RtosInit();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

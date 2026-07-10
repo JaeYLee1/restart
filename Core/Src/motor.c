@@ -48,6 +48,9 @@
 #define MOTOR_KP                   0.35f
 #define MOTOR_KI                   0.40f
 
+/* 졸음 감지 */
+#define MOTOR_WARNING_LIMIT_RPM       30.0f
+#define MOTOR_RAMP_STEP_RPM           10.0f
 
 /* ================= 내부 상태 ================= */
 
@@ -65,6 +68,9 @@ static uint16_t prev_encoder_cnt = 0U;
 static float pi_prev_error = 0.0f;
 static float pi_prev_duty = 0.0f;
 
+static volatile float user_target_rpm = 0.0f;
+static volatile uint8_t warning_slowdown_active = 0U;
+static volatile uint8_t warning_recovery_active = 0U;
 
 /* ================= 내부 함수 선언 ================= */
 
@@ -83,6 +89,7 @@ static void Motor_PI_Control(void);
 
 static void MotorControlTask(void *argument);
 
+static void Motor_UpdateRampTarget(void);
 
 /* ================= 초기화 ================= */
 
@@ -102,6 +109,10 @@ void Motor_Init(void)
 
     pi_prev_error = 0.0f;
     pi_prev_duty = 0.0f;
+
+    user_target_rpm = 0.0f;
+    warning_slowdown_active = 0U;
+    warning_recovery_active = 0U;
 
     Motor_StopHardware();
 }
@@ -359,6 +370,53 @@ static void Motor_PI_Control(void)
     pi_prev_error = error;
 }
 
+static void Motor_UpdateRampTarget(void)
+{
+    float desired_rpm;
+
+    if (motor_running == 0U)
+    {
+        target_rpm = 0.0f;
+        return;
+    }
+
+    if (warning_slowdown_active != 0U)
+    {
+        desired_rpm = MOTOR_WARNING_LIMIT_RPM;
+    }
+    else
+    {
+        desired_rpm = user_target_rpm;
+    }
+
+    if (target_rpm < desired_rpm)
+    {
+        target_rpm += MOTOR_RAMP_STEP_RPM;
+
+        if (target_rpm > desired_rpm)
+        {
+            target_rpm = desired_rpm;
+        }
+    }
+    else if (target_rpm > desired_rpm)
+    {
+        target_rpm -= MOTOR_RAMP_STEP_RPM;
+
+        if (target_rpm < desired_rpm)
+        {
+            target_rpm = desired_rpm;
+        }
+    }
+
+    if (warning_recovery_active != 0U)
+    {
+        if ((target_rpm >= user_target_rpm - 0.1f) &&
+            (target_rpm <= user_target_rpm + 0.1f))
+        {
+            warning_recovery_active = 0U;
+        }
+    }
+}
 
 /* ================= 외부 제어 API ================= */
 
@@ -368,7 +426,12 @@ void Motor_RequestStart(void)
 
     /* 시작 기본 속도: 중간 */
     motor_speed_level = eMOTOR_MID;
-    target_rpm = MOTOR_RPM_MID;
+
+    user_target_rpm = MOTOR_RPM_MID;
+    target_rpm = user_target_rpm;
+
+    warning_slowdown_active = 0U;
+    warning_recovery_active = 0U;
 
     /* PI 초기화 */
     pi_prev_error = 0.0f;
@@ -384,7 +447,12 @@ void Motor_RequestStop(void)
     motor_running = 0;
 
     motor_speed_level = eMOTOR_STOP;
+
+    user_target_rpm = 0.0f;
     target_rpm = 0.0f;
+
+    warning_slowdown_active = 0U;
+    warning_recovery_active = 0U;
 
     pi_prev_error = 0.0f;
     pi_prev_duty = 0.0f;
@@ -392,33 +460,61 @@ void Motor_RequestStop(void)
     Motor_StopHardware();
 }
 
-
 void Motor_SetSpeedLevel(MotorSpeedLevel_t level)
 {
     switch (level)
     {
         case eMOTOR_SLOW:
             motor_speed_level = eMOTOR_SLOW;
-            target_rpm = MOTOR_RPM_SLOW;
+            user_target_rpm = MOTOR_RPM_SLOW;
             break;
 
         case eMOTOR_MID:
             motor_speed_level = eMOTOR_MID;
-            target_rpm = MOTOR_RPM_MID;
+            user_target_rpm = MOTOR_RPM_MID;
             break;
 
         case eMOTOR_FAST:
             motor_speed_level = eMOTOR_FAST;
-            target_rpm = MOTOR_RPM_FAST;
+            user_target_rpm = MOTOR_RPM_FAST;
             break;
 
         case eMOTOR_STOP:
         default:
             Motor_RequestStop();
-            break;
+            return;
+    }
+
+    if (warning_slowdown_active == 0U)
+    {
+        target_rpm = user_target_rpm;
     }
 }
 
+void Motor_WarningSlowdown(void)
+{
+    if (motor_running == 0U)
+    {
+        return;
+    }
+
+    warning_slowdown_active = 1U;
+    warning_recovery_active = 0U;
+}
+
+
+void Motor_WarningRecover(void)
+{
+    if (motor_running == 0U)
+    {
+        warning_slowdown_active = 0U;
+        warning_recovery_active = 0U;
+        return;
+    }
+
+    warning_slowdown_active = 0U;
+    warning_recovery_active = 1U;
+}
 
 /* ================= Motor Control Task ================= */
 
@@ -433,6 +529,7 @@ static void MotorControlTask(void *argument)
 
         if (motor_running == 1U)
         {
+        	Motor_UpdateRampTarget();
             Motor_PI_Control();
         }
         else

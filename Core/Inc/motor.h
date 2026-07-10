@@ -41,4 +41,6 @@ float Motor_GetCurrentRpm(void);
 float Motor_GetTargetRpm(void);
 float Motor_GetDuty(void);
 
+void Motor_WarningSlowdown(void);
+void Motor_WarningRecover(void);
 #endif /* INC_MOTOR_H_ */

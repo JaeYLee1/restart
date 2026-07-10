@@ -15,6 +15,7 @@
 #include "module_manager.h"
 #include "motor.h"
 #include "module_b.h"
+#include "warning.h"
 
 #define UART_TELEMETRY_PERIOD_MS     100U
 
@@ -29,7 +30,7 @@ static void UART_ProcessCommandChar(uint8_t command);
 /* UART Task 생성 */
 void UARTTask_Init(void)
 {
-#if 1
+#if 0
     /* Base -> Pi 상태 전송 */
     if (xTaskCreate(UARTTelemetryTask,
                     "UART_TX",
@@ -315,6 +316,54 @@ static void UART_ProcessCommandChar(uint8_t command)
                                   17U,
                                   100U);
             }
+            break;
+        }
+
+        case 'A':
+        case 'a':
+        {
+            Warning_OnAiLevel(1U);
+
+            HAL_UART_Transmit(&huart3,
+                              (uint8_t *)"OK,WARNING_L1\r\n",
+                              15U,
+                              100U);
+            break;
+        }
+
+        case 'B':
+        case 'b':
+        {
+            Warning_OnAiLevel(2U);
+
+            HAL_UART_Transmit(&huart3,
+                              (uint8_t *)"OK,WARNING_L2\r\n",
+                              15U,
+                              100U);
+            break;
+        }
+
+        case 'N':
+        case 'n':
+        {
+            Warning_OnAiLevel(0U);
+
+            HAL_UART_Transmit(&huart3,
+                              (uint8_t *)"OK,AI_NORMAL\r\n",
+                              14U,
+                              100U);
+            break;
+        }
+
+        case 'K':
+        case 'k':
+        {
+            Warning_OnGuiReset();
+
+            HAL_UART_Transmit(&huart3,
+                              (uint8_t *)"OK,WARNING_RESET\r\n",
+                              18U,
+                              100U);
             break;
         }
 

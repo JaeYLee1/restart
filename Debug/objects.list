@@ -1,3 +1,4 @@
+"./Core/Src/LED_M.o"
 "./Core/Src/can.o"
 "./Core/Src/detect.o"
 "./Core/Src/freertos.o"
@@ -13,6 +14,7 @@
 "./Core/Src/system_data.o"
 "./Core/Src/system_stm32f4xx.o"
 "./Core/Src/uart_task.o"
+"./Core/Src/warning.o"
 "./Core/Startup/startup_stm32f429zitx.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.o"

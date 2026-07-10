@@ -1,0 +1,15 @@
+../Core/Src/warning.c:96:6:Warning_Motor_OnLevel2	1
+../Core/Src/warning.c:102:6:Warning_Motor_OnRecovery	1
+../Core/Src/warning.c:108:6:Warning_Init	1
+../Core/Src/warning.c:132:6:Warning_RtosInit	2
+../Core/Src/warning.c:146:6:Warning_OnAiLevel	8
+../Core/Src/warning.c:200:6:Warning_OnGuiReset	2
+../Core/Src/warning.c:221:9:Warning_GetLevel	1
+../Core/Src/warning.c:227:16:Warning_GetState	1
+../Core/Src/warning.c:234:13:Warning_HwInit	1
+../Core/Src/warning.c:334:13:Warning_BuzzerOn	1
+../Core/Src/warning.c:340:13:Warning_BuzzerOff	1
+../Core/Src/warning.c:346:13:Warning_LedMatrixOff	1
+../Core/Src/warning.c:353:13:Warning_LedMatrixLevel1	1
+../Core/Src/warning.c:360:13:Warning_LedMatrixLevel2	1
+../Core/Src/warning.c:368:13:WarningTask	10
