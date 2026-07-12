@@ -1,8 +1,8 @@
 ../Drivers/CMSIS/Include/core_cm4.h:1684:22:__NVIC_EnableIRQ	2
 ../Drivers/CMSIS/Include/core_cm4.h:1814:22:__NVIC_SetPriority	2
-../Core/Src/detect.c:38:6:Detect_Init	1
-../Core/Src/detect.c:81:6:Detect_RtosInit	2
-../Core/Src/detect.c:110:6:Detect_IrqHandler	4
-../Core/Src/detect.c:134:16:Detect_ReadPin	2
-../Core/Src/detect.c:153:13:Detect_ProcessState	3
-../Core/Src/detect.c:189:13:DetectTask	2
+../Core/Src/detect.c:39:6:Detect_Init	1
+../Core/Src/detect.c:82:6:Detect_RtosInit	2
+../Core/Src/detect.c:111:6:Detect_IrqHandler	4
+../Core/Src/detect.c:135:16:Detect_ReadPin	2
+../Core/Src/detect.c:154:13:Detect_ProcessState	3
+../Core/Src/detect.c:188:13:DetectTask	2

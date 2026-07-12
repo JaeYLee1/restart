@@ -16,8 +16,10 @@
 #include "motor.h"
 #include "module_b.h"
 #include "warning.h"
+#include "relay.h"
 
 #define UART_TELEMETRY_PERIOD_MS     100U
+//#define UART_TELEMETRY_PERIOD_MS     2500U
 
 /* main.c에 생성된 USART3 핸들 */
 extern UART_HandleTypeDef huart3;
@@ -30,7 +32,7 @@ static void UART_ProcessCommandChar(uint8_t command);
 /* UART Task 생성 */
 void UARTTask_Init(void)
 {
-#if 0
+#if 1
     /* Base -> Pi 상태 전송 */
     if (xTaskCreate(UARTTelemetryTask,
                     "UART_TX",
@@ -64,19 +66,30 @@ void UARTTask_Init(void)
  */
 static void UARTTelemetryTask(void *argument)
 {
-    char uart_buffer[128];
+    char uart_buffer[256];
     int length;
 
+    // 모듈 센서 값(무게, 온도)
     int32_t pressure_value;
     int32_t current_temp_x10;
     int32_t target_temp_x10;
 
+    // 부하 모터
     int32_t target_rpm_x10;
     int32_t current_rpm_x10;
     int32_t motor_duty_x10;
 
+    // 모듈 유형, 인증 결과
     ModuleType_t module_type;
     uint8_t auth_result;
+
+
+    // 소비 전력 데이터
+    int32_t base_power_mw;
+    int32_t module_b_power_mw;
+    int32_t cooling_power_mw;
+    int32_t motor_power_mw;
+    int32_t total_power_mw;
 
     (void)argument;
 
@@ -99,18 +112,30 @@ static void UARTTelemetryTask(void *argument)
         motor_duty_x10 =
             (int32_t)(g_system_data.motor_pwm_duty * 10.0f);
 
+        base_power_mw    =
+        		(int32_t)(g_system_data.base_power_w * 1000.0f);
+        module_b_power_mw =
+        		(int32_t)(g_system_data.module_b_power_w * 1000.0f);
+        cooling_power_mw =
+        		(int32_t)(g_system_data.cooling_power_w * 1000.0f);
+        motor_power_mw   =
+        		(int32_t)(g_system_data.motor_power_w * 1000.0f);
+        total_power_mw   =
+        		(int32_t)(g_system_data.total_power_w * 1000.0f);
+
         module_type = ModuleManager_GetModuleType();
         auth_result = ModuleManager_IsAccepted();
 
+/*
         if (auth_result == 1U)
         {
             g_system_data.relay_state = 1;
             g_system_data.fsm_state = FSM_ACTIVE;
         }
-
+*/
         length = snprintf(uart_buffer,
                           sizeof(uart_buffer),
-                          "TEL,%u,%u,%ld,%ld,%ld,%u,%u,%u,%ld,%ld,%ld,%u,%u,%u\r\n",
+                          "RTOS_Data,%u,%u,%ld,%ld,%ld,%u,%u,%u,%ld,%ld,%ld,%u,%u,%u,%ld,%ld,%ld,%ld,%ld\r\n",
                           (unsigned int)module_type,
                           (unsigned int)auth_result,
                           (long)pressure_value,
@@ -124,7 +149,12 @@ static void UARTTelemetryTask(void *argument)
                           (long)motor_duty_x10,
                           (unsigned int)g_system_data.detect_state,
                           (unsigned int)g_system_data.relay_state,
-                          (unsigned int)g_system_data.fsm_state);
+                          (unsigned int)g_system_data.fsm_state,
+                          (long)base_power_mw,
+                          (long)module_b_power_mw,
+                          (long)cooling_power_mw,
+                          (long)motor_power_mw,
+                          (long)total_power_mw);
 
         if ((length > 0) &&
             (length < (int)sizeof(uart_buffer)))
@@ -222,15 +252,20 @@ static void UART_ProcessCommandChar(uint8_t command)
         case 'C':
             if (g_system_data.detect_state == 1U)
             {
-                g_system_data.relay_state = 1U;
-                g_system_data.fsm_state = FSM_AUTHENTICATING;
-
-                ModuleManager_OnAttached();
-
-                HAL_UART_Transmit(&huart3,
-                                  (uint8_t *)"OK,CONNECT_MODULE\r\n",
-                                  19U,
-                                  100U);
+                if (Relay_RequestConnect() != 0U)
+                {
+                    HAL_UART_Transmit(&huart3,
+                                      (uint8_t *)"OK,CONNECT_MODULE\r\n",
+                                      19U,
+                                      100U);
+                }
+                else
+                {
+                    HAL_UART_Transmit(&huart3,
+                                      (uint8_t *)"ERR,RELAY_BUSY\r\n",
+                                      15U,
+                                      100U);
+                }
             }
             else
             {
@@ -243,12 +278,7 @@ static void UART_ProcessCommandChar(uint8_t command)
 
         case 'd':
         case 'D':
-            g_system_data.relay_state = 0U;
-            g_system_data.fsm_state = FSM_IDLE;
-
-            //ModuleB_ResetTargetTemp();
-
-            ModuleManager_OnDetached();
+            Relay_RequestDisconnect();
 
             HAL_UART_Transmit(&huart3,
                               (uint8_t *)"OK,DISCONNECT_MODULE\r\n",
@@ -260,15 +290,20 @@ static void UART_ProcessCommandChar(uint8_t command)
         case 'R':
             if (g_system_data.detect_state == 1U)
             {
-                g_system_data.relay_state = 1U;
-                g_system_data.fsm_state = FSM_AUTHENTICATING;
-
-                ModuleManager_OnAttached();
-
-                HAL_UART_Transmit(&huart3,
-                                  (uint8_t *)"OK,RETRY_AUTH\r\n",
-                                  15U,
-                                  100U);
+                if (Relay_RequestConnect() != 0U)
+                {
+                    HAL_UART_Transmit(&huart3,
+                                      (uint8_t *)"OK,RETRY_AUTH\r\n",
+                                      15U,
+                                      100U);
+                }
+                else
+                {
+                    HAL_UART_Transmit(&huart3,
+                                      (uint8_t *)"ERR,RELAY_BUSY\r\n",
+                                      15U,
+                                      100U);
+                }
             }
             else
             {

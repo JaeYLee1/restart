@@ -31,6 +31,8 @@
 #include "uart_task.h"
 #include "motor.h"
 #include "warning.h"
+#include "relay.h"
+#include "power.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -121,6 +123,8 @@ int main(void)
 
   Detect_Init();
 
+  Relay_Init();
+
   Motor_Init();
 
   ModuleManager_Init();
@@ -157,13 +161,20 @@ int main(void)
   /* add threads, ... */
   CAN_RtosInit();
   Detect_RtosInit();
+  Relay_RtosInit();
   UARTTask_Init();
   Motor_RtosInit();
   Warning_RtosInit();
+  PowerMonitor_RtosInit();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
+  NVIC_SetPriority(I2C1_EV_IRQn, 5);
+  NVIC_EnableIRQ(I2C1_EV_IRQn);
+
+  NVIC_SetPriority(I2C1_ER_IRQn, 5);
+  NVIC_EnableIRQ(I2C1_ER_IRQn);
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */

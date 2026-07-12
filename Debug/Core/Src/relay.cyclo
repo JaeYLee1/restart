@@ -1,0 +1,17 @@
+../Core/Src/relay.c:61:6:Relay_Init	1
+../Core/Src/relay.c:75:6:Relay_RtosInit	2
+../Core/Src/relay.c:89:13:Relay_GPIO_Init	1
+../Core/Src/relay.c:121:9:Relay_RequestConnect	5
+../Core/Src/relay.c:157:9:Relay_RequestDisconnect	2
+../Core/Src/relay.c:172:6:Relay_ForceOff	2
+../Core/Src/relay.c:194:14:Relay_GetState	1
+../Core/Src/relay.c:200:9:Relay_IsConnected	2
+../Core/Src/relay.c:207:6:Precharge_On	1
+../Core/Src/relay.c:214:6:Precharge_Off	1
+../Core/Src/relay.c:221:6:Bypass_On	1
+../Core/Src/relay.c:228:6:Bypass_Off	1
+../Core/Src/relay.c:235:9:Precharge_GetPinState	2
+../Core/Src/relay.c:241:9:Bypass_GetPinState	2
+../Core/Src/relay.c:248:13:Relay_ProcessConnect	1
+../Core/Src/relay.c:297:13:Relay_ProcessDisconnect	2
+../Core/Src/relay.c:329:13:RelayTask	3

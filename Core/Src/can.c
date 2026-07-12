@@ -152,7 +152,7 @@ static void CAN1_Peripheral_Init(void)
      * BS2 = 2 tq
      * Bitrate = 500 kbps
      */
-#if 1
+#if 0
     CAN1->BTR =
         (5U  << 0)  |   /* BRP */
         (10U << 16) |   /* TS1 */
@@ -521,7 +521,7 @@ static void CAN_DispatchRxFrame(const CAN_Frame_t *frame)
         if ((callback_table[i].callback != NULL) &&
             (callback_table[i].std_id == frame->std_id))
         {
-#if 1
+#if 0
         	if (frame->std_id == 0x110U)
             {
                 HAL_UART_Transmit(&huart3,
@@ -536,7 +536,7 @@ static void CAN_DispatchRxFrame(const CAN_Frame_t *frame)
         }
     }
 
-#if 1
+#if 0
     if (frame->std_id == 0x110U)
     {
         HAL_UART_Transmit(&huart3,

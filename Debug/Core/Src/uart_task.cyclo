@@ -1,4 +1,4 @@
-../Core/Src/uart_task.c:31:6:UARTTask_Init	2
-../Core/Src/uart_task.c:65:13:UARTTelemetryTask	4
-../Core/Src/uart_task.c:155:13:UARTCommandTask	6
-../Core/Src/uart_task.c:192:13:UART_ProcessCommandChar	18
+../Core/Src/uart_task.c:33:6:UARTTask_Init	3
+../Core/Src/uart_task.c:67:13:UARTTelemetryTask	3
+../Core/Src/uart_task.c:185:13:UARTCommandTask	6
+../Core/Src/uart_task.c:222:13:UART_ProcessCommandChar	20

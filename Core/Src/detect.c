@@ -15,6 +15,7 @@
 #include "detect.h"
 #include "module_manager.h"
 #include "system_data.h"
+#include "relay.h"
 
 /* 디바운싱 시간 */
 #define DETECT_DEBOUNCE_MS       30U
@@ -178,10 +179,8 @@ static void Detect_ProcessState(void)
     else
     {
         g_system_data.detect_state = 0U;
-        g_system_data.relay_state = 0U;
-        g_system_data.fsm_state = FSM_IDLE;
 
-        ModuleManager_OnDetached();
+        Relay_ForceOff();
     }
 }
 

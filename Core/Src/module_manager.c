@@ -13,9 +13,10 @@
  */
 
 #include "module_manager.h"
+#include "system_data.h"
 
 /* 인증 대기 시간 */
-#define AUTH_TIMEOUT_MS      1000U
+#define AUTH_TIMEOUT_MS      10000U
 
 /* Task 주기 */
 #define MODULE_MANAGER_MS    20U
@@ -152,6 +153,8 @@ void ModuleManager_HandleAnnounce(const CAN_Frame_t *frame)
         module_id = received_id;
         link_accepted = 1U;
 
+        g_system_data.fsm_state = FSM_ACTIVE;
+
         auth_state = eAUTH_ACCEPTED;
         GPIOB->BSRR |= (1<<0);
     }
@@ -160,6 +163,8 @@ void ModuleManager_HandleAnnounce(const CAN_Frame_t *frame)
         module_type = eMODULE_NONE;
         module_id = 0U;
         link_accepted = 0U;
+
+        g_system_data.fsm_state = FSM_FAULT;
 
         auth_state = eAUTH_REJECTED;
         GPIOB->BSRR |= (1<<16);
@@ -231,11 +236,15 @@ static void ModuleManagerTask(void *argument)
             {
                 taskENTER_CRITICAL();
 
+                auth_state = eAUTH_REJECTED;
+
                 module_type = eMODULE_NONE;
                 module_id = 0U;
                 link_accepted = 0U;
 
-                auth_state = eAUTH_REJECTED;
+                //g_system_data.relay_state = 0U;
+                g_system_data.fsm_state = FSM_DETECTED;
+
 
                 taskEXIT_CRITICAL();
 

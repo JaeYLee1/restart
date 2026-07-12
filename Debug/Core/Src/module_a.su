@@ -1,2 +1,2 @@
-../Core/Src/module_a.c:34:6:ModuleA_HandlePressure	144	static
-../Core/Src/module_a.c:117:6:ModuleA_Init	8	static
+../Core/Src/module_a.c:34:6:ModuleA_HandlePressure	24	static
+../Core/Src/module_a.c:119:6:ModuleA_Init	8	static

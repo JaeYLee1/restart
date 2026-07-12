@@ -46,6 +46,7 @@ void ModuleA_HandlePressure(const CAN_Frame_t *frame)
         return;
     }
 
+#if 0
     char debug_buffer[80];
     int debug_length;
 
@@ -67,6 +68,7 @@ void ModuleA_HandlePressure(const CAN_Frame_t *frame)
                           (uint16_t)debug_length,
                           100U);
     }
+#endif
 
     /*
      * 현재 승인된 모듈이 Module A일 때만 수신값 반영

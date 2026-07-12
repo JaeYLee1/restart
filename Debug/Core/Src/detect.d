@@ -38,7 +38,7 @@ Core/Src/detect.o: ../Core/Src/detect.c ../Core/Inc/detect.h \
  ../Core/Inc/module_manager.h ../Core/Inc/can.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Core/Inc/can_protocol.h ../Core/Inc/system_data.h
+ ../Core/Inc/can_protocol.h ../Core/Inc/system_data.h ../Core/Inc/relay.h
 ../Core/Inc/detect.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
@@ -83,3 +83,4 @@ Core/Src/detect.o: ../Core/Src/detect.c ../Core/Inc/detect.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
 ../Core/Inc/can_protocol.h:
 ../Core/Inc/system_data.h:
+../Core/Inc/relay.h:

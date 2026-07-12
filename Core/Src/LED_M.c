@@ -43,9 +43,11 @@ const uint8_t LED_M_PATTERN_ALL_OFF[8] =
     0x00, 0x00, 0x00, 0x00
 };
 
+/*
 #define SPI_SR_RXNE   (1U << 0)
 #define SPI_SR_TXE    (1U << 1)
 #define SPI_SR_BSY    (1U << 7)
+*/
 
 static void LED_M_CS_Low(LED_M_Handle_t *led)
 {

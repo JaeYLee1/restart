@@ -12,4 +12,4 @@
 ../Core/Src/can.c:359:6:CAN_RxIrqHandler	7
 ../Core/Src/can.c:425:13:CanRxTask	2
 ../Core/Src/can.c:479:6:CAN_RegisterRxCallback	7
-../Core/Src/can.c:515:13:CAN_DispatchRxFrame	6
+../Core/Src/can.c:515:13:CAN_DispatchRxFrame	4

@@ -35,6 +35,13 @@ typedef struct
     uint8_t relay_state;         /* 0: OFF, 1: ON, 현재는 가상 릴레이 */
     uint8_t fsm_state;           /* FSM_IDLE ~ FSM_FAULT */
 
+    /* Power Monitor */
+    float base_power_w;
+    float module_b_power_w;
+    float cooling_power_w;
+    float motor_power_w;
+    float total_power_w;
+
 } SystemSharedData_t;
 
 extern SystemSharedData_t g_system_data;
