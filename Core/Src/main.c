@@ -159,13 +159,15 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  PowerMonitor_RtosInit();
+  Warning_RtosInit();
+
   CAN_RtosInit();
   Detect_RtosInit();
   Relay_RtosInit();
   UARTTask_Init();
   Motor_RtosInit();
-  Warning_RtosInit();
-  PowerMonitor_RtosInit();
+
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -175,6 +177,9 @@ int main(void)
 
   NVIC_SetPriority(I2C1_ER_IRQn, 5);
   NVIC_EnableIRQ(I2C1_ER_IRQn);
+
+  NVIC_SetPriority(USART3_IRQn, 6);
+  NVIC_EnableIRQ(USART3_IRQn);
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -406,23 +411,9 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-#if 0
-	uint8_t target_sent = 0U;
-#endif
   /* Infinite loop */
 	for (;;)
 	{
-#if 0
-        if ((target_sent == 0U) &&
-            (ModuleManager_IsAccepted() != 0U) &&
-            (ModuleManager_GetModuleType() == eMODULE_COLD_CHAIN))
-        {
-            /* 22.0°C -> x10 값 220 */
-            ModuleB_SendTargetTemp(100);
-
-            target_sent = 1U;
-        }
-#endif
 		osDelay(1000);
 	}
   /* USER CODE END 5 */

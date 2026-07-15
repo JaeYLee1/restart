@@ -45,7 +45,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+extern UART_HandleTypeDef huart3;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -194,4 +194,8 @@ void EXTI0_IRQHandler(void)
     Detect_IrqHandler();
 }
 
+void USART3_IRQHandler(void)
+{
+    HAL_UART_IRQHandler(&huart3);
+}
 /* USER CODE END 1 */

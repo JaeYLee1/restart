@@ -21,24 +21,30 @@ typedef enum
 } RelayState_t;
 
 void Relay_Init(void);
+void Relay_GPIO_Init(void);
 void Relay_RtosInit(void);
 
 uint8_t Relay_RequestConnect(void);
 uint8_t Relay_RequestDisconnect(void);
-
 void Relay_ForceOff(void);
 
 RelayState_t Relay_GetState(void);
 uint8_t Relay_IsConnected(void);
 
-/* Low-level control */
+/* Precharge Relay: PE5, Active-Low */
 void Precharge_On(void);
 void Precharge_Off(void);
 
+/* Bypass Relay: PE6, Active-Low */
 void Bypass_On(void);
 void Bypass_Off(void);
 
+/* Module B Peltier Relay: PE3, Active-Low */
+void ModuleB_Peltier_On(void);
+void ModuleB_Peltier_Off(void);
+
 uint8_t Precharge_GetPinState(void);
 uint8_t Bypass_GetPinState(void);
+uint8_t ModuleB_Peltier_GetPinState(void);
 
 #endif /* INC_RELAY_H_ */

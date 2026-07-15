@@ -15,6 +15,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include "module_manager.h"
+#include "relay.h"
 
 /* =========================================================
  * External Handle
@@ -24,7 +26,7 @@ extern UART_HandleTypeDef huart3;
 /* =========================================================
  * Sensor Use Select
  * ========================================================= */
-#define POWER_USE_INA3221         (0)
+#define POWER_USE_INA3221         (1)
 #define POWER_USE_INA226          (1)
 
 /* =========================================================
@@ -37,11 +39,19 @@ extern UART_HandleTypeDef huart3;
  * A0 = SDA -> 0x42
  * A0 = SCL -> 0x43
  *
- * 현재 INA3221 보드는 SDA-GND 쇼트 의심으로 비활성화.
  */
 #define INA3221_ADDR              (0x41)
-#define INA226_ADDR               (0x40)
 
+/* INA226 #1: Fan + Peltier */
+#define INA226_COOLING_ADDR       (0x40)
+
+/* INA226 #2: Motor */
+#define INA226_MOTOR_ADDR         (0x45)
+
+/* Sensor ID */
+#define POWER_SENSOR_INA3221          (3221)
+#define POWER_SENSOR_INA226_COOLING   (2260)
+#define POWER_SENSOR_INA226_MOTOR     (2261)
 /* =========================================================
  * INA3221 Register
  * ========================================================= */
@@ -82,7 +92,15 @@ extern UART_HandleTypeDef huart3;
  * R100 = 0.1Ω = 100mΩ
  * R010 = 0.01Ω = 10mΩ
  */
-#define POWER_SHUNT_RESISTOR_MOHM (100U)
+#define INA3221_SHUNT_MOHM          (100U)  /* INA3221 보드가 R100이면 100mΩ */
+
+#define INA226_COOLING_SHUNT_MOHM   (100U)  // 팬+펠티어 센서가 R100이면
+#define INA226_MOTOR_SHUNT_MOHM     (10U)   // 모터는 R010
+
+// 한계치 이상 전력 사용 시 경고 (과전력)
+#define MODULE_B_POWER_LIMIT_W          (10.0f)  /* 임시값, 나중에 너희가 정하면 됨 */
+#define POWER_OVER_WARNING_COUNT        (3U)
+#define POWER_OVER_CUTOFF_COUNT         (4U)
 
 /* =========================================================
  * Internal Type
@@ -132,6 +150,8 @@ static volatile uint8_t data_L;
 
 static volatile uint8_t g_i2c_bus_error_flag = 0U;
 static volatile uint32_t g_i2c_last_error_sr1 = 0U;
+static uint8_t power_over_count = 0U;
+static uint8_t power_cutoff_latched = 0U;
 
 /* =========================================================
  * Internal Function
@@ -206,14 +226,19 @@ static uint8_t Power_GetWriteAddress(int sensor, uint8_t *addr)
         return 0U;
     }
 
-    if (sensor == 3221)
+    if (sensor == POWER_SENSOR_INA3221)
     {
         *addr = (uint8_t)((INA3221_ADDR << 1) | 0U);
         return 1U;
     }
-    else if (sensor == 226)
+    else if (sensor == POWER_SENSOR_INA226_COOLING)
     {
-        *addr = (uint8_t)((INA226_ADDR << 1) | 0U);
+        *addr = (uint8_t)((INA226_COOLING_ADDR << 1) | 0U);
+        return 1U;
+    }
+    else if (sensor == POWER_SENSOR_INA226_MOTOR)
+    {
+        *addr = (uint8_t)((INA226_MOTOR_ADDR << 1) | 0U);
         return 1U;
     }
 
@@ -227,14 +252,19 @@ static uint8_t Power_GetReadAddress(int sensor, uint8_t *addr)
         return 0U;
     }
 
-    if (sensor == 3221)
+    if (sensor == POWER_SENSOR_INA3221)
     {
         *addr = (uint8_t)((INA3221_ADDR << 1) | 1U);
         return 1U;
     }
-    else if (sensor == 226)
+    else if (sensor == POWER_SENSOR_INA226_COOLING)
     {
-        *addr = (uint8_t)((INA226_ADDR << 1) | 1U);
+        *addr = (uint8_t)((INA226_COOLING_ADDR << 1) | 1U);
+        return 1U;
+    }
+    else if (sensor == POWER_SENSOR_INA226_MOTOR)
+    {
+        *addr = (uint8_t)((INA226_MOTOR_ADDR << 1) | 1U);
         return 1U;
     }
 
@@ -270,6 +300,86 @@ static int32_t Power_Abs32(int32_t value)
     }
 
     return value;
+}
+
+static void Power_UpdateModuleBTotalAndProtection(void)
+{
+	g_system_data.power_limit_w = MODULE_B_POWER_LIMIT_W;
+
+    float module_b_total_w;
+
+    module_b_total_w =
+        g_system_data.module_b_power_w +
+        g_system_data.cooling_power_w;
+
+    /*
+     * 변수명은 total_power_w지만,
+     * 현재 프로젝트에서는 Module B 전체 전력으로 사용.
+     *
+     * total_power_w = Module B STM32 + Peltier + Fan
+     */
+    g_system_data.total_power_w = module_b_total_w;
+
+    /*
+     * Module B가 아니거나 인증 전이면 보호 로직 동작 안 함.
+     */
+    if ((ModuleManager_GetModuleType() != 2U) ||
+        (ModuleManager_IsAccepted() == 0U) ||
+        (Relay_IsConnected() == 0U))
+    {
+        power_over_count = 0U;
+
+        /*
+         * 차단 latch는 모듈 분리 또는 명시적인 reset 때만 해제
+         */
+        g_system_data.power_warning_count = 0U;
+
+        return;
+    }
+
+    /*
+     * 이미 차단된 상태면 반복 차단 방지.
+     */
+    if (power_cutoff_latched != 0U)
+    {
+        return;
+    }
+
+    if (module_b_total_w > MODULE_B_POWER_LIMIT_W)
+    {
+        if (power_over_count < POWER_OVER_CUTOFF_COUNT)
+        {
+            power_over_count++;
+        }
+
+        g_system_data.power_warning_count = power_over_count;
+
+        if (power_over_count >= POWER_OVER_CUTOFF_COUNT)
+        {
+            power_cutoff_latched = 1U;
+
+            ModuleB_Peltier_Off();
+            Relay_ForceOff();
+
+            g_system_data.power_fault = 1U;
+            g_system_data.fsm_state = FSM_FAULT;
+        }
+    }
+    else
+    {
+        power_over_count = 0U;
+        g_system_data.power_warning_count = 0U;
+
+        /*
+         * 차단 전 정상 복귀 시에만 fault 해제.
+         * 이미 차단된 fault는 유지.
+         */
+        if (power_cutoff_latched == 0U)
+        {
+            g_system_data.power_fault = 0U;
+        }
+    }
+
 }
 
 /* =========================================================
@@ -449,26 +559,47 @@ void Power_INA3221_Init(void)
 {
 #if POWER_USE_INA3221
     /*
-     * 현재 INA3221은 보드 불량 의심으로 비활성화.
+     * INA3221 전체 채널 활성화.
+     * CH1, CH3 사용 예정.
      */
-    (void)Power_WriteReg16(3221, INA3221_CONFIG, 0x7327U);
+    (void)Power_WriteReg16(POWER_SENSOR_INA3221, INA3221_CONFIG, 0x7327U);
 #else
     return;
 #endif
 }
 
-void Power_INA226_Init(void)
+static void Power_INA226_InitBySensor(int sensor)
 {
 #if POWER_USE_INA226
     /*
-     * INA226 단독 HAL 테스트에서 확인한 설정값 사용.
-     * Current/Power register는 Calibration 기반이라 사용하지 않고,
-     * BUS/SHUNT raw를 직접 읽어서 계산함.
+     * INA226 설정값:
+     * AVG 1회, VBUS/VSHUNT conversion 1.1ms,
+     * Shunt + Bus Continuous mode.
      */
-    (void)Power_WriteReg16(226, INA226_CONFIG, INA226_CONFIG_VALUE);
+    (void)Power_WriteReg16(sensor, INA226_CONFIG, INA226_CONFIG_VALUE);
 #else
+    (void)sensor;
     return;
 #endif
+}
+
+void Power_INA226_Cooling_Init(void)
+{
+    Power_INA226_InitBySensor(POWER_SENSOR_INA226_COOLING);
+}
+
+void Power_INA226_Motor_Init(void)
+{
+    Power_INA226_InitBySensor(POWER_SENSOR_INA226_MOTOR);
+}
+
+/*
+ * 기존 코드 호환용.
+ * 기존 Power_INA226_Init()은 Cooling INA226 0x40 초기화로 유지.
+ */
+void Power_INA226_Init(void)
+{
+    Power_INA226_Cooling_Init();
 }
 
 /* =========================================================
@@ -491,27 +622,31 @@ static uint8_t Power_Read_INA3221_Channel(uint8_t bus_reg,
         return 0U;
     }
 
-    if (Power_ReadReg16(3221, bus_reg, &bus_raw) == 0U)
+    if (Power_ReadReg16(POWER_SENSOR_INA3221, bus_reg, &bus_raw) == 0U)
     {
         return 0U;
     }
 
-    if (Power_ReadReg16(3221, shunt_reg, &shunt_raw) == 0U)
+    if (Power_ReadReg16(POWER_SENSOR_INA3221, shunt_reg, &shunt_raw) == 0U)
     {
         return 0U;
     }
 
     /*
      * INA3221:
-     * Bus LSB   = 8mV
-     * Shunt LSB = 40uV
+     * Bus register   : 상위 13bit 유효, LSB = 8mV
+     * Shunt register : 상위 13bit 유효, LSB = 40uV
      */
     bus_valid = (int16_t)(bus_raw >> 3);
     shunt_valid = (int16_t)(shunt_raw >> 3);
 
     out->bus_mv = (int32_t)bus_valid * 8L;
     out->shunt_uv = (int32_t)shunt_valid * 40L;
-    out->current_ma = out->shunt_uv / (int32_t)POWER_SHUNT_RESISTOR_MOHM;
+
+    /*
+     * current[mA] = shunt[uV] / shunt[mΩ]
+     */
+    out->current_ma = out->shunt_uv / (int32_t)INA3221_SHUNT_MOHM;
 
     if (out->current_ma < 0)
     {
@@ -533,7 +668,9 @@ static uint8_t Power_Read_INA3221_Channel(uint8_t bus_reg,
  * INA226 Read Function
  * ========================================================= */
 
-uint8_t Power_INA226_Read(Power_INA226Value_t *out)
+static uint8_t Power_INA226_ReadBySensor(int sensor,
+                                         uint32_t shunt_mohm,
+                                         Power_INA226Value_t *out)
 {
     int16_t bus_raw;
     int16_t shunt_raw;
@@ -548,45 +685,27 @@ uint8_t Power_INA226_Read(Power_INA226Value_t *out)
         return 0U;
     }
 
-    if (Power_ReadReg16(226, INA226_BUS, &bus_raw) == 0U)
+    if (Power_ReadReg16(sensor, INA226_BUS, &bus_raw) == 0U)
     {
         return 0U;
     }
 
-    if (Power_ReadReg16(226, INA226_SHUNT, &shunt_raw) == 0U)
+    if (Power_ReadReg16(sensor, INA226_SHUNT, &shunt_raw) == 0U)
     {
         return 0U;
     }
 
-    /*
-     * INA226:
-     * Bus Voltage LSB   = 1.25mV
-     * Shunt Voltage LSB = 2.5uV
-     *
-     * bus_mv   = raw * 1.25mV
-     * shunt_uv = raw * 2.5uV
-     */
     bus_mv = ((int32_t)bus_raw * 125L) / 100L;
     shunt_uv = ((int32_t)shunt_raw * 25L) / 10L;
 
-    /*
-     * current[mA] = shunt[uV] / Rshunt[mΩ]
-     *
-     * R100 기준:
-     * 700uV / 100mΩ = 7mA
-     */
-    current_ma = shunt_uv / (int32_t)POWER_SHUNT_RESISTOR_MOHM;
+    current_ma = shunt_uv / (int32_t)shunt_mohm;
 
     if (current_ma < 0)
     {
         current_ma = -current_ma;
     }
 
-    /*
-     * power[mW] = bus[mV] * current[mA] / 1000
-     */
     power_mw = (bus_mv * current_ma) / 1000L;
-
     power_mw = Power_Abs32(power_mw);
 
     out->bus_mv = bus_mv;
@@ -597,21 +716,66 @@ uint8_t Power_INA226_Read(Power_INA226Value_t *out)
     return 1U;
 }
 
+uint8_t Power_INA226_Cooling_Read(Power_INA226Value_t *out)
+{
+    return Power_INA226_ReadBySensor(POWER_SENSOR_INA226_COOLING,
+                                     INA226_COOLING_SHUNT_MOHM,
+                                     out);
+}
+
+uint8_t Power_INA226_Motor_Read(Power_INA226Value_t *out)
+{
+    return Power_INA226_ReadBySensor(POWER_SENSOR_INA226_MOTOR,
+                                     INA226_MOTOR_SHUNT_MOHM,
+                                     out);
+}
+
+/*
+ * 기존 코드 호환용.
+ * 기존 Power_INA226_Read()는 Cooling INA226 0x40 읽기로 유지.
+ */
+uint8_t Power_INA226_Read(Power_INA226Value_t *out)
+{
+    return Power_INA226_Cooling_Read(out);
+}
+
 /* =========================================================
  * RTOS Task
  * ========================================================= */
 
 void PowerMonitor_Task(void *argument)
 {
-    Power_INA226Value_t ina226;
-    char msg[192];
+    PowerTestValue_t ina3221_base;
+    PowerTestValue_t ina3221_module_b;
+    Power_INA226Value_t cooling_ina226;
+    Power_INA226Value_t motor_ina226;
+
+    char msg[256];
+
+    uint8_t ok_base = 0U;
+    uint8_t ok_module_b = 0U;
+    uint8_t ok_cooling = 0U;
+    uint8_t ok_motor = 0U;
+
+    int32_t base_power_mw = 0;
+    int32_t module_b_power_mw = 0;
+    int32_t cooling_power_mw = 0;
+    int32_t motor_power_mw = 0;
+
+#if 0
+    int32_t total_power_mw = 0;
+#endif
 
     (void)argument;
 
     Power_I2C1_Init();
-    Power_INA226_Init();
 
-    Power_Print("\r\n[INA226 RTOS TEST START]\r\n");
+    /*
+     * 전체 센서 초기화
+     */
+    Power_INA3221_Init();          /* INA3221 0x41 */
+    Power_INA226_Cooling_Init();   /* INA226 0x40 */
+    Power_INA226_Motor_Init();     /* INA226 0x45 */
 
     for (;;)
     {
@@ -625,7 +789,10 @@ void PowerMonitor_Task(void *argument)
             Power_Print(msg);
 
             Power_I2C1_Init();
-            Power_INA226_Init();
+
+            Power_INA3221_Init();
+            Power_INA226_Cooling_Init();
+            Power_INA226_Motor_Init();
 
             g_i2c_bus_error_flag = 0U;
 
@@ -633,50 +800,103 @@ void PowerMonitor_Task(void *argument)
             continue;
         }
 
-        memset(&ina226, 0, sizeof(ina226));
+        memset(&ina3221_base, 0, sizeof(ina3221_base));
+        memset(&ina3221_module_b, 0, sizeof(ina3221_module_b));
+        memset(&cooling_ina226, 0, sizeof(cooling_ina226));
+        memset(&motor_ina226, 0, sizeof(motor_ina226));
 
-        uint8_t ok_226 = Power_INA226_Read(&ina226);
-
-        if (ok_226 != 0U)
-        {
-            /*
-             * 프로젝트 내부 저장용.
-             * 현재 system_data에 cooling_power_w는 있다고 보고 갱신.
-             */
-
-        	/* 실제 저장 단위는 mW. 변수명은 기존 system_data 구조 유지 때문에 cooling_power_w 사용 */
-
-        	g_system_data.cooling_power_w = (float)ina226.power_mw / 1000.0f;
+        /*
+         * INA3221
+         * CH1: Base STM32 보드
+         * CH3: Module B STM32 보드
+         */
 #if 1
-        	// ina3321
-        	g_system_data.base_power_w = 0.0f;
-        	g_system_data.module_b_power_w = 0.0f;
-        	g_system_data.motor_power_w = 0.0f;
-#endif
+        ok_base = Power_Read_INA3221_Channel(INA3221_BUS1,
+                                             INA3221_SHUNT1,
+                                             &ina3221_base);
 
-            /*
-             * system_data에 아래 필드가 있으면 나중에 활성화.
-             *
-             * g_system_data.cooling_voltage_v = (float)ina226.bus_mv / 1000.0f;
-             * g_system_data.cooling_current_a = (float)ina226.current_ma / 1000.0f;
-             */
-        }
+        ok_module_b = Power_Read_INA3221_Channel(INA3221_BUS3,
+                                                 INA3221_SHUNT3,
+                                                 &ina3221_module_b);
+#endif
+        /*
+         * INA226
+         * 0x40: Fan + Peltier
+         * 0x45: Motor
+         */
+        ok_cooling = Power_INA226_Cooling_Read(&cooling_ina226);
+        //ok_motor = 0U;
+        ok_motor = Power_INA226_Motor_Read(&motor_ina226);
+
+        /*
+         * 각 전력 mW 정리
+         */
+        base_power_mw = ok_base ? ina3221_base.power_mw : 0;
+        module_b_power_mw = ok_module_b ? ina3221_module_b.power_mw : 0;
+        cooling_power_mw = ok_cooling ? cooling_ina226.power_mw : 0;
+        motor_power_mw = ok_motor ? motor_ina226.power_mw : 0;
 
 #if 0
+        total_power_mw = module_b_power_mw + cooling_power_mw;
+#endif
+        /*
+         * system_data는 기존 이름이 *_power_w 이므로 W 단위로 저장.
+         * UART Telemetry에서 mW로 보낼 때는 *1000 해서 보내면 됨.
+         */
+        g_system_data.base_power_w = (float)base_power_mw / 1000.0f;
+        g_system_data.module_b_power_w = (float)module_b_power_mw / 1000.0f;
+        g_system_data.cooling_power_w = (float)cooling_power_mw / 1000.0f;
+        g_system_data.motor_power_w = (float)motor_power_mw / 1000.0f;
+
+        /*
+         * total_power_w = Module B STM32 + Peltier + Fan
+         * 과전력 경고/차단 판단까지 여기서 처리
+         */
+
+        Power_UpdateModuleBTotalAndProtection();
+
+#if 0
+        /*
+         * 통합 테스트용 UART 출력.
+         * GUI Telemetry와 충돌하면 나중에 #if 0 처리.
+         */
         snprintf(msg,
                  sizeof(msg),
-                 "INA226,BUS:%ldmV,SHUNT:%lduV,CURRENT:%ldmA,POWER:%ldmW,%s\r\n",
-                 ina226.bus_mv,
-                 ina226.shunt_uv,
-                 ina226.current_ma,
-                 ina226.power_mw,
-                 ok_226 ? "OK" : "ERR");
+                 "PWR_FULL,"
+                 "BASE:%ldmV,%ldmA,%ldmW,%s,"
+                 "MODB:%ldmV,%ldmA,%ldmW,%s,"
+                 "COOL:%ldmV,%ldmA,%ldmW,%s,"
+                 "MOTOR:%ldmV,%ldmA,%ldmW,%s,"
+                 "TOTAL:%ldmW\r\n",
+
+                 ina3221_base.bus_mv,
+                 ina3221_base.current_ma,
+                 base_power_mw,
+                 ok_base ? "OK" : "ERR",
+
+                 ina3221_module_b.bus_mv,
+                 ina3221_module_b.current_ma,
+                 module_b_power_mw,
+                 ok_module_b ? "OK" : "ERR",
+
+                 cooling_ina226.bus_mv,
+                 cooling_ina226.current_ma,
+                 cooling_power_mw,
+                 ok_cooling ? "OK" : "ERR",
+
+                 motor_ina226.bus_mv,
+                 motor_ina226.current_ma,
+                 motor_power_mw,
+                 ok_motor ? "OK" : "ERR",
+
+                 total_power_mw);
 
         HAL_UART_Transmit(&huart3,
                           (uint8_t *)msg,
                           strlen(msg),
                           100);
 #endif
+
         vTaskDelay(pdMS_TO_TICKS(POWER_MONITOR_PERIOD_MS));
     }
 }

@@ -42,6 +42,10 @@ typedef struct
     float motor_power_w;
     float total_power_w;
 
+    uint8_t power_warning_count;
+    uint8_t power_fault;
+    float power_limit_w;
+
 } SystemSharedData_t;
 
 extern SystemSharedData_t g_system_data;

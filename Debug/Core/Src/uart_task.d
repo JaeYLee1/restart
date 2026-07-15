@@ -40,7 +40,9 @@ Core/Src/uart_task.o: ../Core/Src/uart_task.c ../Core/Inc/uart_task.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
  ../Core/Inc/can_protocol.h ../Core/Inc/motor.h ../Core/Inc/module_b.h \
- ../Core/Inc/warning.h ../Core/Inc/relay.h
+ ../Core/Inc/warning.h ../Core/Inc/relay.h \
+ ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h \
+ ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 ../Core/Inc/uart_task.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
@@ -90,3 +92,5 @@ Core/Src/uart_task.o: ../Core/Src/uart_task.c ../Core/Inc/uart_task.h \
 ../Core/Inc/module_b.h:
 ../Core/Inc/warning.h:
 ../Core/Inc/relay.h:
+../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h:
+../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h:
