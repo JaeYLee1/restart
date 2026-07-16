@@ -39,7 +39,7 @@ Core/Src/power.o: ../Core/Src/power.c ../Core/Inc/main.h \
  ../Core/Inc/module_manager.h ../Core/Inc/can.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Core/Inc/can_protocol.h ../Core/Inc/relay.h
+ ../Core/Inc/can_protocol.h ../Core/Inc/relay.h ../Core/Inc/warning.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -86,3 +86,4 @@ Core/Src/power.o: ../Core/Src/power.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
 ../Core/Inc/can_protocol.h:
 ../Core/Inc/relay.h:
+../Core/Inc/warning.h:

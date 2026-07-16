@@ -49,8 +49,8 @@
 #define MOTOR_KI                   0.40f
 
 /* 졸음 감지 */
-#define MOTOR_WARNING_LIMIT_RPM       30.0f
-#define MOTOR_RAMP_STEP_RPM           2.0f
+#define MOTOR_WARNING_LIMIT_RPM       0.0f
+#define MOTOR_RAMP_STEP_RPM           1.0f
 
 /* ================= 내부 상태 ================= */
 

@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include "module_manager.h"
 #include "relay.h"
+#include "warning.h"
 
 /* =========================================================
  * External Handle
@@ -102,6 +103,14 @@ extern UART_HandleTypeDef huart3;
 #define POWER_OVER_WARNING_COUNT        (3U)
 #define POWER_OVER_CUTOFF_COUNT         (4U)
 
+// 고장 모듈 감지 (배선 끊어짐)
+#define PELTIER_LOW_CURRENT_MA          (100L)
+#define PELTIER_STABLE_TIME_MS          (500U)
+#define PELTIER_LOW_CURRENT_TIME_MS     (2000U)
+#define POWER_TASK_PERIOD_MS            (POWER_MONITOR_PERIOD_MS)
+
+#define PELTIER_STABLE_COUNT            (PELTIER_STABLE_TIME_MS / POWER_TASK_PERIOD_MS)
+#define PELTIER_LOW_CURRENT_COUNT       (PELTIER_LOW_CURRENT_TIME_MS / POWER_TASK_PERIOD_MS)
 /* =========================================================
  * Internal Type
  * ========================================================= */
@@ -153,6 +162,9 @@ static volatile uint32_t g_i2c_last_error_sr1 = 0U;
 static uint8_t power_over_count = 0U;
 static uint8_t power_cutoff_latched = 0U;
 
+static uint8_t peltier_stable_count = 0U;
+static uint8_t peltier_low_current_count = 0U;
+static uint8_t peltier_fault_latched = 0U;
 /* =========================================================
  * Internal Function
  * ========================================================= */
@@ -380,6 +392,97 @@ static void Power_UpdateModuleBTotalAndProtection(void)
         }
     }
 
+}
+
+// 고장모듈 감지
+static void Power_UpdatePeltierOpenFault(uint8_t ok_cooling,
+                                         int32_t cooling_current_ma)
+{
+    uint8_t peltier_should_be_on;
+
+    /*
+     * Module B가 정상 인증되어 ACTIVE 상태이고,
+     * 메인 릴레이가 연결된 상태면 펠티어 전류 감시 대상.
+     *
+     * 현재 구조상 이 조건이면 RelayTask에서 ModuleB_Peltier_On()이 유지됨.
+     */
+    peltier_should_be_on =
+        (ModuleManager_GetModuleType() == 2U) &&
+        (ModuleManager_IsAccepted() == 1U) &&
+        (Relay_IsConnected() == 1U) &&
+        (g_system_data.fsm_state == FSM_ACTIVE);
+
+    if (peltier_should_be_on == 0U)
+    {
+        peltier_stable_count = 0U;
+        peltier_low_current_count = 0U;
+
+        if (peltier_fault_latched == 0U)
+        {
+            /* 정상 분리/대기 상태에서는 fault 해제 */
+        }
+
+        return;
+    }
+
+    if (peltier_fault_latched != 0U)
+    {
+        return;
+    }
+
+    /*
+     * 릴레이 ON 직후 센서값 안정화 시간.
+     * POWER_MONITOR_PERIOD_MS = 500ms면 1회 skip.
+     */
+    if (peltier_stable_count < PELTIER_STABLE_COUNT)
+    {
+        peltier_stable_count++;
+        peltier_low_current_count = 0U;
+        return;
+    }
+
+    /*
+     * 센서 자체가 안 읽히면 단선 판정하지 않음.
+     * 이건 I2C 센서 오류로 따로 봐야 함.
+     */
+    if (ok_cooling == 0U)
+    {
+        peltier_low_current_count = 0U;
+        return;
+    }
+
+    /*
+     * 릴레이 ON인데 전류가 기준 이하인 상태가 2초 지속되면 fault.
+     */
+    if (cooling_current_ma < PELTIER_LOW_CURRENT_MA)
+    {
+        if (peltier_low_current_count < PELTIER_LOW_CURRENT_COUNT)
+        {
+            peltier_low_current_count++;
+        }
+
+        if (peltier_low_current_count >= PELTIER_LOW_CURRENT_COUNT)
+        {
+            peltier_fault_latched = 1U;
+
+            ModuleB_Peltier_Off();
+            Relay_ForceOff();
+
+            g_system_data.power_fault = 1U;
+            g_system_data.fsm_state = FSM_FAULT;
+
+            /*
+             * 부저 + LED 매트릭스 경고.
+             * warning.c에 있는 함수명에 맞춰 사용.
+             * 예: Warning_OnAiLevel(2U) 또는 Warning_OnGuiReset 반대 함수.
+             */
+            Warning_OnAiLevel(2U);
+        }
+    }
+    else
+    {
+        peltier_low_current_count = 0U;
+    }
 }
 
 /* =========================================================
@@ -762,7 +865,7 @@ void PowerMonitor_Task(void *argument)
     int32_t cooling_power_mw = 0;
     int32_t motor_power_mw = 0;
 
-#if 0
+#if 0 // 테스트용
     int32_t total_power_mw = 0;
 #endif
 
@@ -810,7 +913,7 @@ void PowerMonitor_Task(void *argument)
          * CH1: Base STM32 보드
          * CH3: Module B STM32 보드
          */
-#if 1
+
         ok_base = Power_Read_INA3221_Channel(INA3221_BUS1,
                                              INA3221_SHUNT1,
                                              &ina3221_base);
@@ -818,14 +921,13 @@ void PowerMonitor_Task(void *argument)
         ok_module_b = Power_Read_INA3221_Channel(INA3221_BUS3,
                                                  INA3221_SHUNT3,
                                                  &ina3221_module_b);
-#endif
+
         /*
          * INA226
          * 0x40: Fan + Peltier
          * 0x45: Motor
          */
         ok_cooling = Power_INA226_Cooling_Read(&cooling_ina226);
-        //ok_motor = 0U;
         ok_motor = Power_INA226_Motor_Read(&motor_ina226);
 
         /*
@@ -836,7 +938,7 @@ void PowerMonitor_Task(void *argument)
         cooling_power_mw = ok_cooling ? cooling_ina226.power_mw : 0;
         motor_power_mw = ok_motor ? motor_ina226.power_mw : 0;
 
-#if 0
+#if 0 // 테스트용
         total_power_mw = module_b_power_mw + cooling_power_mw;
 #endif
         /*
@@ -855,7 +957,9 @@ void PowerMonitor_Task(void *argument)
 
         Power_UpdateModuleBTotalAndProtection();
 
-#if 0
+        Power_UpdatePeltierOpenFault(ok_cooling,
+                                     cooling_ina226.current_ma);
+#if 0 // 테스트용
         /*
          * 통합 테스트용 UART 출력.
          * GUI Telemetry와 충돌하면 나중에 #if 0 처리.
@@ -890,6 +994,22 @@ void PowerMonitor_Task(void *argument)
                  ok_motor ? "OK" : "ERR",
 
                  total_power_mw);
+
+        HAL_UART_Transmit(&huart3,
+                          (uint8_t *)msg,
+                          strlen(msg),
+                          100);
+#endif
+#if 0	// 테스트용 - COOLING INA226만 출력
+        snprintf(msg,
+                 sizeof(msg),
+                 "COOL:"
+                 "%ldmV,%ldmA,%ldmW,%s\r\n",
+
+                 cooling_ina226.bus_mv,
+                 cooling_ina226.current_ma,
+                 cooling_power_mw,
+                 ok_cooling ? "OK" : "ERR");
 
         HAL_UART_Transmit(&huart3,
                           (uint8_t *)msg,
